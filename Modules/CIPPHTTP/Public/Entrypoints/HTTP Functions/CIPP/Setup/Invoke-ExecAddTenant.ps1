@@ -26,14 +26,14 @@ function Invoke-ExecAddTenant {
         # The account that consented is recorded so the connection can be traced and refreshed
         # later. The auth date is stamped server side rather than trusting the client.
         $ServiceAccount = $Request.body.username ?? ''
-        $AuthDate = (Get-Date).ToUniversalTime()
+        $AuthDate = (Get-Date).ToUniversalTime().ToString('o')
 
         # Get the Tenants table
         $TenantsTable = Get-CippTable -tablename 'Tenants'
         #force a refresh of the authentication info
         $auth = Get-CIPPAuthentication
         # Check if tenant already exists
-        $ExistingTenant = Get-CIPPAzDataTableEntity @TenantsTable -Filter "PartitionKey eq 'Tenants' and RowKey eq '$tenantId'"
+        $ExistingTenant = Get-CIPPAzDataTableEntity @TenantsTable -Filter "PartitionKey eq 'Tenants' and RowKey eq '$(ConvertTo-CIPPODataFilterValue -Value $tenantId)'"
 
         if ($tenantId -eq $env:TenantID) {
             # If the tenant is the partner tenant, return an error because you cannot add the partner tenant as direct tenant

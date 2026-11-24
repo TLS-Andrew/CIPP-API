@@ -26,6 +26,7 @@ BeforeAll {
     . (Join-Path $script:RepoRoot 'Modules/CIPPCore/Public/Get-CIPPIntuneCompareExclusions.ps1')
     . (Join-Path $script:RepoRoot 'Modules/CIPPCore/Public/Compare-CIPPIntuneObject.ps1')
     . (Join-Path $script:RepoRoot 'Modules/CIPPBaselines/Public/Helpers/Get-CIPPBaselineCommand.ps1')
+    . (Join-Path $script:RepoRoot 'Modules/CIPPBaselines/Public/Helpers/Expand-CIPPBaselineToken.ps1')
     . (Join-Path $script:RepoRoot 'Modules/CIPPBaselines/Public/Helpers/Invoke-CIPPBaselineStandard.ps1')
 
     $script:Tenant = 'contoso.onmicrosoft.com'
@@ -63,7 +64,7 @@ Describe 'MessageEncryption definition' {
         Mock Send-CIPPBaselineAlert { }
         Mock Write-LogMessage { }
         Mock Invoke-CIPPBaselineExoRequest { }
-        Mock Get-CIPPTenantCapabilities { [PSCustomObject]@{ EXCHANGE_S_ENTERPRISE = $true } }
+        Mock Get-CIPPTenantCapabilities { [PSCustomObject]@{ EXCHANGE_S_ENTERPRISE = $true; RMS_S_ENTERPRISE = $true } }
     }
 
     It 'keeps the classic variable names so V2 templates migrate' {
@@ -74,6 +75,14 @@ Describe 'MessageEncryption definition' {
         foreach ($Name in 'EnablePdfEncryption', 'DecryptAttachmentForEncryptOnly', 'SimplifiedClientAccessDoNotForwardDisabled', 'SimplifiedClientAccessEncryptOnlyDisabled') {
             foreach ($Option in @($script:Definition.variables.$Name.options).Where({ "$($_.value)" })) { $Option.value | Should -BeOfType [bool] }
         }
+    }
+
+    It 'skips a tenant with Exchange but no Azure RMS plan as unlicensed' {
+        Mock Get-CIPPTenantCapabilities { [PSCustomObject]@{ EXCHANGE_S_STANDARD = $true; RMS_S_BASIC = $true } }
+        Mock New-CIPPDbRequest { New-CachedIrm }
+        $Result = Invoke-CIPPBaselineStandard -Item (New-EngineItem ([PSCustomObject]@{})) -Mode 'run'
+        $Result.LicenseAvailable | Should -BeFalse
+        Should -Invoke Invoke-CIPPBaselineExoRequest -Times 0
     }
 
     Context 'grading' {

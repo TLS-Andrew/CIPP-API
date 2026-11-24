@@ -34,6 +34,7 @@ function Get-CIPPSchedulerBlockedCommands {
         'New-DeviceLogin'
         'Clear-CippTokenCache'
         'Remove-CIPPDirectTenantToken'
+        'Remove-CIPPPartnerTenant'
 
         # Env
         'Set-CIPPEnvVarBackup'
@@ -47,6 +48,7 @@ function Get-CIPPSchedulerBlockedCommands {
         # Extension authentication tokens
         'Get-GradientToken'
         'Get-HaloToken'
+        'Invoke-SyncroRequest'
         'Get-NinjaOneToken'
         'Get-SherwebAuthentication'
         'Get-HIBPAuth'
@@ -99,6 +101,7 @@ function Get-CIPPSchedulerBlockedCommands {
 
         # Tenant enumeration - would reveal full tenant list
         'Get-Tenants'
+        'Get-CIPPPartnerTenantList'
 
         # SAM permission enumeration - exposes which permissions the SAM app holds
         'Get-CippSamPermissions'
@@ -133,5 +136,25 @@ function Get-CIPPSchedulerBlockedCommands {
         'Set-CippQueueTask'
         'Update-CippQueueEntry'
         'Add-CIPPScheduledTask'
+
+        # Dispatchers - run a second command or a script taken from their own parameters
+        'Push-TableCleanupTask'
+        'Push-CIPPOffboardingTask'
+        'Push-ExecScheduledCommand'
+        'Start-CIPPOrchestrator'
+        'Invoke-CippSandboxScript'
+        'New-CippCustomScriptExecution'
+
+        # SAM credentials & notification routing
+        'Get-CIPPSAMCredentials'
+        'Set-CIPPNotificationConfig'
+
+        # Graph helpers with no tenant check or a caller-supplied URL.
+        # New-CIPPGraphRetry stays schedulable: the request helper schedules it itself.
+        'New-GraphMultiTenantBulkRequest'
+        'New-GraphDeltaQuery'
+        'New-CIPPMFAConnectorToken'
+        'Get-CIPPIntuneReportRows'
+        'Get-CIPPAuditLogContent'
     )
 }

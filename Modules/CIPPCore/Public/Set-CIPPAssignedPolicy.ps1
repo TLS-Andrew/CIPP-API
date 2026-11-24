@@ -45,9 +45,9 @@ function Set-CIPPAssignedPolicy {
                 $ResolvedFilterId = $MatchingFilter.id
                 Write-Host "Found assignment filter: $($MatchingFilter.displayName) with ID: $ResolvedFilterId"
             } else {
-                $ErrorMessage = "No assignment filter found matching the name: $AssignmentFilterName. Policy assigned without filter."
+                $ErrorMessage = "No assignment filter found matching the name: $AssignmentFilterName. Policy not assigned."
                 Write-LogMessage -headers $Headers -API $APIName -message $ErrorMessage -sev 'Warning' -tenant $TenantFilter
-                Write-Host $ErrorMessage
+                throw $ErrorMessage
             }
         }
 
@@ -123,14 +123,21 @@ function Set-CIPPAssignedPolicy {
             } else {
                 Write-Host "We're supposed to exclude a custom group. The group is $ExcludeGroup"
                 $ExcludeGroupNames = $ExcludeGroup.Split(',').Trim()
-                $ResolvedExcludeIds = New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/groups?$select=id,displayName&$top=999' -tenantid $TenantFilter |
-                    ForEach-Object {
-                        foreach ($SingleName in $ExcludeGroupNames) {
-                            if ($_.displayName -like ($SingleName -replace '\[', '`[' -replace '\]', '`]')) {
-                                $_.id
-                            }
-                        }
-                    }
+                $AllGroups = @(New-GraphGetRequest -uri 'https://graph.microsoft.com/beta/groups?$select=id,displayName&$top=999' -tenantid $TenantFilter)
+                $ResolvedExcludeIds = [System.Collections.Generic.List[string]]::new()
+                $UnresolvedExcludeNames = [System.Collections.Generic.List[string]]::new()
+                foreach ($SingleName in $ExcludeGroupNames) {
+                    $Pattern = $SingleName -replace '\[', '`[' -replace '\]', '`]'
+                    $Matched = @($AllGroups | Where-Object { $_.displayName -like $Pattern })
+                    if ($Matched.Count -eq 0) { $UnresolvedExcludeNames.Add($SingleName) }
+                    foreach ($m in $Matched) { $ResolvedExcludeIds.Add($m.id) }
+                }
+                # An unresolved exclusion must not fall through to a broader assignment.
+                if ($UnresolvedExcludeNames.Count -gt 0) {
+                    $ErrorMessage = "No groups found matching the specified exclude group name(s): $($UnresolvedExcludeNames -join ', '). Policy not assigned."
+                    Write-LogMessage -headers $Headers -API $APIName -message $ErrorMessage -sev 'Warning' -tenant $TenantFilter
+                    throw $ErrorMessage
+                }
             }
 
             foreach ($egid in $ResolvedExcludeIds) {
@@ -216,6 +223,7 @@ function Set-CIPPAssignedPolicy {
             'deviceManagementScripts' { 'deviceManagementScriptAssignments' }
             'deviceShellScripts' { 'deviceManagementScriptAssignments' }
             'hardwareConfigurations' { 'hardwareConfigurationAssignments' }
+            'deviceEnrollmentConfigurations' { 'enrollmentConfigurationAssignments' }
             default { 'assignments' }
         }
 
@@ -263,6 +271,8 @@ function Set-CIPPAssignedPolicy {
         }
 
     } catch {
+        # Pending Intune multi-admin approval, already logged and scheduled for completion - not a failure.
+        if ($_.Exception.Data['IntuneApprovalCode']) { throw }
         $ErrorMessage = Get-CippException -Exception $_
         Write-LogMessage -headers $Headers -API $APIName -message "Failed to assign $GroupName to Policy $PolicyId, using Platform $PlatformType and $Type. The error is:$($ErrorMessage.NormalizedError)" -Sev 'Error' -tenant $TenantFilter -LogData $ErrorMessage
         # Throw rather than return the message. A returned string is indistinguishable from success
